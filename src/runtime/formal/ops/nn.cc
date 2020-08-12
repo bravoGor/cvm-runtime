@@ -60,42 +60,6 @@ CVM_REGISTER_GLOBAL("cvm.runtime.formal.dense")
   }
 });
 
-void conv2d(int32_t* x_data, int32_t n_batch, int32_t in_channels, int32_t x_h,
-            int32_t x_w, int32_t* w_data, int32_t filter_c, int32_t filter_h,
-            int32_t filter_w, int32_t* y_data, int32_t out_channels,
-            int32_t o_h, int32_t o_w, int32_t* b_data, int32_t padding[2],
-            int32_t stride_h, int32_t stride_w, int32_t dilation_h,
-            int32_t dilation_w) {
-  for (int32_t n = 0; n < n_batch; n++) {
-    for (int32_t oc = 0; oc < out_channels; oc++) {
-      for (int32_t oh = 0; oh < o_h; oh++) {
-        for (int32_t ow = 0; ow < o_w; ow++) {
-          int32_t sum = 0;
-          for (int32_t ic = 0; ic < in_channels; ic++) {
-            for (int32_t fh = 0; fh < filter_h; fh++) {
-              for (int32_t fw = 0; fw < filter_w; fw++) {
-                int32_t ih = oh * stride_h + fh * dilation_h - padding[0];
-                int32_t iw = ow * stride_w + fw * dilation_w - padding[1];
-                if (ih < 0 || ih >= x_h || iw < 0 || iw >= x_w) {
-                  continue;
-                }
-                int32_t w_index = oc * filter_c * filter_h * filter_w +
-                                  ic * filter_h * filter_w + fh * filter_w + fw;
-                int32_t x_index = n * in_channels * x_h * x_w + ic * x_h * x_w +
-                                  ih * x_w + iw;
-                sum += w_data[w_index] * x_data[x_index];
-              }
-            }
-          }
-          int32_t y_index =
-              n * out_channels * o_h * o_w + oc * o_h * o_w + oh * o_w + ow;
-          y_data[y_index] = sum + (b_data != nullptr ? b_data[oc] : 0);
-        }
-      }
-    }
-  }
-}
-
 static void groupwise_conv2d(
     int32_t* x_data, int32_t n_batch, int32_t in_channels, int32_t x_h,
     int32_t x_w, int32_t* w_data, int32_t filter_c, int32_t filter_h,
@@ -104,13 +68,44 @@ static void groupwise_conv2d(
     int32_t stride_w, int32_t dilation_h, int32_t dilation_w, int32_t groups) {
   int32_t ochannels_per_group = out_channels / groups;
   int32_t ichannels_per_group = in_channels / groups;
+#ifdef USE_INDICES
+  for (Indices yIdx(TShape({n_batch, out_channels, o_h, o_w})),
+       xIdx(TShape{n_batch, in_channels, x_h, x_w}),
+       ftrIdx(TShape{out_channels, filter_c, filter_h, filter_w});
+       !yIdx.End(); yIdx++) {
+    // no need to reset xIdx and ftrIdx(stands for filter index)
+    // since they are assigned to a completely new value each time in the loop.
+    int n = yIdx[0], oc = yIdx[1], oh = yIdx[2], ow = yIdx[3];
+    int32_t sum = 0;
+    int32_t ic = oc / ochannels_per_group * ichannels_per_group;
+    for (int32_t tic = 0; tic < ichannels_per_group; ++tic) {
+      for (int32_t fh = 0; fh < filter_h; ++fh) {
+        for (int32_t fw = 0; fw < filter_w; ++fw) {
+          int32_t th = oh * stride_h + fh * dilation_h - padding[0];
+          int32_t tw = ow * stride_w + fw * dilation_w - padding[1];
+          if (th < 0 || tw < 0 || th >= x_h || tw >= x_w) continue;
+          xIdx.CopyIndicesFrom({n, ic + tic, th, tw});
+          ftrIdx.CopyIndicesFrom({oc, tic, fh, fw});
+          sum += x_data[xIdx.Index()] * w_data[ftrIdx.Index()];
+        }
+      }
+    }
+    y_data[yIdx.Index()] = sum + (b_data == nullptr ? 0 : b_data[oc]);
+  }
+#else
+  int O_CHW = out_channels * o_h * o_w;
+  int O_HW = o_h * o_w;
+  int I_CHW = in_channels * x_h * x_w;
+  int I_HW = x_h * x_w;
+  int F_CHW = filter_c * filter_h * filter_w;
+  int F_HW = filter_h * filter_w;
   for (int32_t n = 0; n < n_batch; ++n) {
 #pragma omp parallel for collapse(3)
     for (int32_t oc = 0; oc < out_channels; ++oc) {
       for (int32_t oh = 0; oh < o_h; ++oh) {
         for (int32_t ow = 0; ow < o_w; ++ow) {
           int32_t oi =
-              n * out_channels * o_h * o_w + oc * o_h * o_w + oh * o_w + ow;
+              n * O_CHW + oc * O_HW + oh * o_w + ow;
           int32_t sum = 0;
           int32_t ic = oc / ochannels_per_group * ichannels_per_group;
           for (int32_t tic = 0; tic < ichannels_per_group; ++tic) {
@@ -119,10 +114,8 @@ static void groupwise_conv2d(
                 int32_t th = oh * stride_h + fh * dilation_h - padding[0];
                 int32_t tw = ow * stride_w + fw * dilation_w - padding[1];
                 if (th < 0 || tw < 0 || th >= x_h || tw >= x_w) continue;
-                sum += x_data[n * in_channels * x_h * x_w +
-                              (ic + tic) * x_h * x_w + th * x_w + tw] *
-                       w_data[oc * filter_c * filter_h * filter_w +
-                              tic * filter_h * filter_w + fh * filter_w + fw];
+                sum += x_data[n * I_CHW + (ic + tic) * I_HW + th * x_w + tw] *
+                       w_data[oc * F_CHW + tic * F_HW + fh * filter_w + fw];
               }
             }
           }
@@ -131,6 +124,8 @@ static void groupwise_conv2d(
       }
     }
   }
+#endif  // USE_INDICES
+
 }
 
 
