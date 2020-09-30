@@ -172,6 +172,19 @@ class MRT(tfm.MRT):
             # name, op_name = s.attr('name'), s.attr('op_name')
             # if op_name in ["Convolution"]:
                 # print(name)
+        # from mrt.sym_utils import is_params, sym_iter
+        # sym, params = self.current_model.symbol, self.current_model.params
+        # infer_shapes = tpass.infer_shape(sym, params)
+        # for s in topo_sort(sym):
+            # name, op_name = s.attr('name'), s.attr('op_name')
+            # if name in ["mrt_sym_separate_bias_mrt_rewrite_MobilenetV1/MobilenetV1/Conv2d_3_pointwise/BatchNorm/FusedBatchNorm_0_0"]:
+                # childs = sym_iter(s.get_children())
+                # attr = s.list_attr()
+                # cns = [c.attr('name') for c in childs]
+                # print(cns)
+                # print(s.attr('op_name'), len(childs))
+                # print(infer_shapes[cns[0]], infer_shapes[cns[1]])
+                # print(attr)
         # exit()
 
         _sym, _prm = quantize(

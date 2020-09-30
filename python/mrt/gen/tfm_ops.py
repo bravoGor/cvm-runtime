@@ -222,6 +222,11 @@ class Convolution(tops.Convolution, Transformer):
 
         if xquant_type == wquant_type == USQuantizer.name:
             op = _quantize_xw(op, **kwargs)
+            # if name == "mrt_sym_separate_bias_mrt_rewrite_MobilenetV1/MobilenetV1/Conv2d_3_pointwise/BatchNorm/FusedBatchNorm_0_0":
+                # from os import path
+                # with open(path.expanduser('~/ryt.json'), 'w') as f:
+                    # f.write(op.tojson())
+                # nd.save(path.expanduser('~/ryt.params'), params)
         elif xquant_type == USQuantizer.name and \
             wquant_type == UAQuantizer.name:
             Xq, xprec, xscale = xquant.quantize(
@@ -446,6 +451,11 @@ class Clip(tops.Clip, Transformer):
         a_min = int(get_attr(attrs, "a_min") * iscale)
         a_max = int(get_attr(attrs, "a_max") * iscale)
         precs[name][OUT_KEY] = get_bit_exp(max(abs(a_min), a_max))
+        if name == "clip5":
+            from os import path
+            with open(path.expanduser('~/ryt.params'), 'w') as f:
+                f.write(op.tojson())
+            nd.save(path.expanduser('~/ryt.params'), kwargs['params'])
         return mx.sym.clip(X, a_min=a_min, a_max=a_max, name=name)
 
 

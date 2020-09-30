@@ -246,6 +246,11 @@ def sym_calibrate(symbol, params, data, cfg_dict, **kwargs):
                 deps[n].remove(name)
                 if len(deps[n]) == 0:
                     del out_cache[n]
+        if name == 'mrt_rewrite_transpose31_0':
+            from os import path
+            from mxnet import ndarray as nd
+            pth = path.expanduser('~/weight.npy')
+            nd.save(pth, out)
 
         out = [out] if len(op) == 1 else out
         out_cache[name] = [o.as_in_context(ctx) for o in out]
