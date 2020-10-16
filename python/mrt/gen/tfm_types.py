@@ -501,6 +501,11 @@ class USQuantizer(Quantizer):
         if sb > shift_bits:
             iprec -= sb
             X = tutils.realize(X, sb, iprec)
+            # debug
+            from . import tfm_ops as tops
+            if xopn == tops.Slice.op_name:
+                print(X.attr('name'), "*******")
+            # end of debug
             iscale = iscale / (2**sb)
 
         if oscale is not None or iprec > oprec:

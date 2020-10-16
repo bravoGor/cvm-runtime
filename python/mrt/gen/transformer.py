@@ -192,6 +192,13 @@ class MRT(tfm.MRT):
             self.features, self.precs, self.buffers, self.cfg_dict,
             self.op_input_precs, self.restore_names,
             self.shift_bits, self.softmax_lambd)
+        # for s in topo_sort(_sym):
+            # name = s.attr('name')
+            # if name == "mrt_sym_separate_bias_mrt_rewrite_MobilenetV1/MobilenetV1/Conv2d_3_pointwise/BatchNorm/FusedBatchNorm_0_0":
+                # with open(path.expanduser('~/ryt.json'), 'w') as f:
+                    # f.write(s.tojson())
+                # nd.save(path.expanduser('~/ryt.params'), _prm)
+        # exit()
         self.current_model = Model(_sym, _prm)
         return self.current_model
 

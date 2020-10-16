@@ -314,6 +314,9 @@ if __name__ == "__main__":
             not batch % ngpus, sec, 'Device_ids',
             'Batch must be divisible by the number of gpus')
         split_batch = batch//ngpus
+        symbol_file = path.expanduser('~/ryt.json')
+        params_file = path.expanduser('~/ryt.params')
+        qmodel = Model.load(symbol_file, params_file)
         rqmodel = reduce_graph(qmodel, {
             'data': set_batch(input_shape, split_batch)})
         qgraph = rqmodel.to_graph(ctx=ctx)

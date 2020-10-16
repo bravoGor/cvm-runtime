@@ -222,11 +222,6 @@ class Convolution(tops.Convolution, Transformer):
 
         if xquant_type == wquant_type == USQuantizer.name:
             op = _quantize_xw(op, **kwargs)
-            # if name == "mrt_sym_separate_bias_mrt_rewrite_MobilenetV1/MobilenetV1/Conv2d_3_pointwise/BatchNorm/FusedBatchNorm_0_0":
-                # from os import path
-                # with open(path.expanduser('~/ryt.json'), 'w') as f:
-                    # f.write(op.tojson())
-                # nd.save(path.expanduser('~/ryt.params'), params)
         elif xquant_type == USQuantizer.name and \
             wquant_type == UAQuantizer.name:
             Xq, xprec, xscale = xquant.quantize(
@@ -1098,6 +1093,13 @@ def _quantize_scale(op, **kwargs):
         infer_prec = max(cprecs) if op_name == Concat.op_name \
             else max(cprecs)+1
     elif op_name == AddN.op_name:
+        # debug
+        from os import path
+        op = mx.sym.add_n(*nodes, name=N.n("add_n"))
+        with open(path.expanduser("~/test_ryt.json"), "w") as f:
+            f.write(op.tojson())
+        exit()
+        # end of debug
         while len(nodes) > 1:
             tname = N.n('elemwise_add') if len(nodes) > 2 else name
             a, b = nodes.pop(0), nodes.pop(0)
